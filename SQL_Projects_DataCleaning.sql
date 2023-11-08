@@ -1,3 +1,11 @@
+/*
+Cleaning Data
+Skills used: Converting Data Types, JOIN, COALESCE, SUBSTRING, CASE Statement, CTE, Temporary Tables, Window Functions
+*/
+
+USE projects;
+
+# Preparing table for the datasets used in practice
 DROP TABLE IF EXISTS nashville_housing;
 CREATE TABLE nashville_housing (
 	UniqueID INT,
@@ -21,6 +29,7 @@ CREATE TABLE nashville_housing (
 	HalfBath FLOAT
 );
 
+-- importing the datasets
 LOAD DATA INFILE 'C:/ProgramData/MYSQL/MYSQL Server 8.0/Uploads/cleaned_nashville.csv'
 INTO TABLE nashville_housing
 FIELDS TERMINATED BY ',' 
@@ -28,12 +37,9 @@ ENCLOSED BY '"'
 LINES TERMINATED BY '\n'
 IGNORE 1 LINES;
 
+-- checking the imported datasets
 SELECT *
 FROM nashville_housing;
-
-/*
-Cleaning Data
-*/
 
 # Standardize date format
 ALTER TABLE nashville_housing
@@ -109,18 +115,64 @@ FROM nashville_housing;
 	UPDATE nashville_housing
 	SET Owner_State = SUBSTRING_INDEX(OwnerAddress, ' ', -1);
 
+# Change Y and N to (Yes and No) in column 'SoldAsVacant'
+SELECT SoldAsVacant,
+	CASE
+		WHEN SoldAsVacant = 'Y' THEN 'YES'
+        WHEN SoldAsVacant = 'N' THEN 'No'
+        ELSE SoldAsVacant
+	END  
+FROM nashville_housing;
 
+	-- now update the column
+	UPDATE nashville_housing
+	SET SoldAsVacant = 	CASE
+							WHEN SoldAsVacant = 'Y' THEN 'YES'
+							WHEN SoldAsVacant = 'N' THEN 'No'
+							ELSE SoldAsVacant
+						END;
 
+# Remove duplicates
+WITH rownumCTE AS (
+	SELECT *,
+		ROW_NUMBER() OVER(PARTITION BY	ParcelID, 
+										PropertyAddress,
+										SaleDate,
+										SalePrice,
+										LegalReference ORDER BY UniqueID) AS row_num
+	FROM nashville_housing	)
+SELECT *					
+FROM rownumCTE
+WHERE row_num > 1
+ORDER BY PropertyAddress;
+
+	-- after seeing the results of all duplicates, DELETE the duplicate values
+	WITH rownumCTE AS (
+		SELECT *,
+			ROW_NUMBER() OVER(PARTITION BY 	ParcelID, 
+											PropertyAddress,
+											SaleDate,
+											SalePrice,
+											LegalReference ORDER BY UniqueID) AS row_num
+		FROM nashville_housing	)
+	DELETE 
+    FROM nashville_housing
+	WHERE UniqueID IN (	SELECT UniqueID
+						FROM rownumCTE
+						WHERE row_num > 1	);
+
+# Delete unused columns
+ALTER TABLE nashville_housing
+DROP COLUMN PropertyAddress;	
 
 ALTER TABLE nashville_housing
-DROP COLUMN SaleDate;	-- dropping the old column format
+DROP COLUMN OwnerAddress;
 
-# Change Y and N to (Yes and No) in column 'SoldAsVacant'
-# Remove duplicates
-# Delete unused columns
+ALTER TABLE nashville_housing
+DROP COLUMN Taxdistrict;
 
-
-SELECT OwnerAddress
+# Check the cleaner table
+SELECT *
 FROM nashville_housing;
 
 
